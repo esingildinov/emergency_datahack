@@ -1,0 +1,9 @@
+Pipfile.lock
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+/notebooks/*.ipynb
+.csv
+.vscode
+data_raw/*.csv
+data_processed/*.csv
+
