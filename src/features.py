@@ -66,6 +66,22 @@ def preprocess_crash_parts(df: pd.DataFrame) -> pd.DataFrame:
     df['crash_type'] = df['length']
     df.loc[df['crash_type'] > 3, 'crash_type'] = 0
     df.loc[df['length'] <= 3, 'length'] = 0
+
+    
+    def length_on_segment(t):
+        if np.floor(t[0]) == np.floor(t[1]):
+            res = t[1] - t[0]
+        elif np.floor(t[0]) == t[2]:
+            res = t[2] + 1 - t[0]
+        else:
+            res = t[1] - t[2]
+
+        if res > 1: res = 1
+        if res == 0: res = t[3]/1000
+
+        return res
+
+    df['length_on_segment'] = df[['avuch_start', 'avuch_end', 'road_km', 'length']].apply(lambda t: length_on_segment(t), axis=1)
     return df
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
