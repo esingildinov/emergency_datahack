@@ -15,6 +15,7 @@ tqdm = "*"
 xgboost = "*"
 fastai = "*"
 ipykernel = "*"
+geopy = "*"
 
 [dev-packages]
 

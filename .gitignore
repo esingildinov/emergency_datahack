@@ -1,6 +1,5 @@
 Pipfile.lock
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
-/notebooks/*.ipynb
 .csv
 .vscode
