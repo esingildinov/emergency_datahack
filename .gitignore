@@ -4,5 +4,3 @@ Pipfile.lock
 /notebooks/*.ipynb
 .csv
 .vscode
-data_raw/*.csv
-data_processed/*.csv
