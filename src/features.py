@@ -113,12 +113,41 @@ def length_on_segment(t):
 
     return res
 
-def preprocess_geo(geo: pd.DataFrame) -> pd.DataFrame:
+
+def get_traffic_stations(traffic: pd.DataFrame) -> pd.DataFrame:
+    traffic_stations = traffic[['station_id', 'road_id', 'road_km', 'latitude', 'longitude']].drop_duplicates()
+    traffic_stations = traffic_stations.sort_values(['road_id', 'road_km']).reset_index(drop=True)
+    return traffic_stations
+
+def preprocess_geo(geo: pd.DataFrame,
+                   traffic: pd.DataFrame) -> pd.DataFrame:
     geo['lat_geoc'] = geo['lat_geoc'].fillna(geo['lat_glonass'])
     geo['lon_geoc'] = geo['lon_geoc'].fillna(geo['lon_glonass'])
 
     geo['lat_glonass'] = geo['lat_glonass'].fillna(geo['lat_geoc'])
     geo['lon_glonass'] = geo['lon_glonass'].fillna(geo['lon_geoc'])
+
+    traffic_stations = get_traffic_stations(traffic)
+    geo = geo.merge(traffic_stations[['station_id', 'road_id', 'road_km']], on=['road_id', 'road_km'], how='left')
+
+    geo.loc[geo.road_id == 9, 'station_id_match'] = geo.loc[geo.road_id == 9, 'station_id'].interpolate(method='nearest').ffill().bfill()
+    geo.loc[geo.road_id == 14, 'station_id_match'] = geo.loc[geo.road_id == 14, 'station_id'].interpolate(method='nearest').ffill().bfill()
+    
+    geo = geo.merge(traffic_stations[['station_id', 'latitude', 'longitude']], 
+                              left_on='station_id_match', right_on='station_id',
+                              how='left')
+
+    geo['dist_nearest_traffic_station'] = np.sqrt((geo['latitude'] - geo['lat_geoc'])**2 +
+                                                  (geo['longitude'] - geo['lon_geoc'])**2)
+
+    geo.drop(columns=['km_name', 'station_id_x', 'station_id_y', 'latitude', 'longitude'], inplace=True)
+    geo.rename(columns={'station_id_match': 'station_id'}, inplace=True)
+
+    geo = coord_km(geo)
+
+    geo['lat'], geo['lon'] = geo['lat_long'].str
+    geo = geo[~(geo.lat.isnull() | geo.lon.isnull())].reset_index(drop=True)
+
     return geo
 
 def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
