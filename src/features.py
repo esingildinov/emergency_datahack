@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import functools
 
-from typing import Optional, List
+from tqdm.auto import tqdm
+from typing import Optional, List, get_origin
 from match_station import coord_km, coord_merge, stations_list, stat_km
 
 
@@ -16,13 +17,11 @@ def compile_train(train: pd.DataFrame,
                   test_segment_ids: Optional[List[str]] = None) -> pd.DataFrame:
     """
     Function for compiling training set with set of segments and each hour between start and end date
-
     Args:
         train (pd.DataFrame): [description]
         segment_ids (Optional[List[str]], optional): [description]. Defaults to None.
         start_date (Optional[str], optional): [description]. Defaults to None.
         end_date (Optional[str], optional): [description]. Defaults to None.
-
     Returns:
         pd.DataFrame: [description]
     """
@@ -37,25 +36,29 @@ def compile_train(train: pd.DataFrame,
     if end_date is None:
         end_date = train.datetime.max().strftime('%Y-%m-%d %H:%M:00')
 
+    train = train[(train.datetime >= start_date) & (train.datetime <= end_date)]
+
     tr = pd.DataFrame({'datetime': pd.date_range(start_date, end_date, freq="1h")})
 
     for sid in segment_ids:
         tr[str(sid)] = 0
         events = train.loc[train['segment_id'] == sid]
         datetimes = events.datetime.dt.floor('H')
-        accident_classes = events.target 
         dates = datetimes.astype(str).unique()
         for date in dates:
             target_value = train[(train.datetime == date) & (train.segment_id == sid)]['target'].values[0]
             tr.loc[tr.datetime == date, sid] = target_value
-        
-    result = pd.DataFrame({
-        'datetime x segment_id': np.concatenate([[" x ".join([str(dt), str(sid)]) for sid in segment_ids] 
-                                                 for dt in tr['datetime']]),
-        'datetime': np.concatenate([[str(dt) for sid in segment_ids] for dt in tr['datetime']]),
-        'segment_id': np.concatenate([[str(sid) for sid in segment_ids] for dt in tr['datetime']]),
-        'target': tr[segment_ids].values.flatten()
-    })
+    
+    train_chunks = []
+    for dt in tqdm(tr['datetime']):
+        chunk = pd.DataFrame({
+            'datetime': [str(dt) for sid in segment_ids],
+            'segment_id': [str(sid) for sid in segment_ids],
+            'target': tr.loc[tr.datetime==dt, segment_ids].values.flatten()
+        })
+        train_chunks.append(chunk)
+    
+    result = pd.concat(train_chunks)
 
     if test_segment_ids is not None:
         result = result.loc[result['segment_id'].isin(test_segment_ids)]
@@ -80,8 +83,8 @@ def add_long_lat(df: pd.DataFrame,
 def add_meteo_stations(train: pd.DataFrame,
                        meteo: pd.DataFrame):
     meteostations_list = stations_list(meteo)
-    train['station'] = train['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
-    train['station'] = train['station'].where(pd.notnull(train['station']), np.nan)
+    train['meteo_station'] = train['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
+    train['meteo_station'] = train['meteo_station'].where(pd.notnull(train['meteo_station']), np.nan)
 
     return train
 
@@ -110,6 +113,27 @@ def length_on_segment(t):
 
     return res
 
+def preprocess_geo(geo: pd.DataFrame) -> pd.DataFrame:
+    geo['lat_geoc'] = geo['lat_geoc'].fillna(geo['lat_glonass'])
+    geo['lon_geoc'] = geo['lon_geoc'].fillna(geo['lon_glonass'])
+
+    geo['lat_glonass'] = geo['lat_glonass'].fillna(geo['lat_geoc'])
+    geo['lon_glonass'] = geo['lon_glonass'].fillna(geo['lon_geoc'])
+    return geo
+
+def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[df['road_id'] != 5]
+    df = df[df['target'] != 3]
+    
+    df.sort_values('datetime', inplace=True)
+    df.reset_index(drop=True, inplace=True)
+
+    df = add_segment_id(df)
+
+    df = df[['datetime', 'road_id', 'road_km', 'segment_id', 'target']]
+
+    return df
+
 def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     # вручную добавляем координаты для станций 'MOSKBAL' и 'MONCHEG', взятые из других датасетов Росгидромета
     df.loc[df['station']=='MOSKBAL', 'lat'] = 55.8 
@@ -130,13 +154,31 @@ def preprocess_crash_parts(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
+def preprocess_traffic(df: pd.DataFrame) -> pd.DataFrame:
+    df['datetime'] = df['datetime'].dt.round('H')
+
+    groupby_cols = ['datetime', 'road_id', 'road_km', 'station_id', 'direction']
+    df = df.groupby(groupby_cols).agg({'volume': 'sum',
+                                        'speed': 'mean',
+                                        'occupancy': 'mean',
+                                        'lane_count': 'max'}).reset_index()
+    
+    result = pd.pivot_table(df, values=['volume', 'speed', 'occupancy'], 
+                            index=['datetime', 'station_id', 'lane_count'], 
+                            columns=['direction']).reset_index()
+
+    result.columns = result.columns.map('_'.join).str.strip('_')
+
+    return result
+
 def preprocess_repair(df: pd.DataFrame) -> pd.DataFrame:
     df['length_on_segment'] = df[['remuch_start', 'remuch_end', 'road_km', 'length']].apply(lambda t: length_on_segment(t), axis=1)
     
-    df.loc[df['year_span'].str.contains('-'), 'year_span'] = df['year_span'].str.split('-')
-    df = df.explode('year_span')
+    df.loc[df['repair_period'].str.contains('-'), 'repair_period'] = df['repair_period'].str.split('-')
+    df = df.explode('repair_period')
     
-    df['datetime'] = pd.to_datetime(df['year_span'] + df['datetime'].dt.strftime('%m%d'), format='%Y-%m-%d')
+    df['datetime'] = pd.to_datetime(df['repair_period'] + df['datetime'].dt.strftime('%m%d'), format='%Y-%m-%d')
+    df['price_per_km']
 
     df.rename(columns={'length': 'avuch_length',
                        'length_on_segment': 'avuch_length_on_segment'}, inplace=True)
