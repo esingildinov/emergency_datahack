@@ -77,8 +77,10 @@ def compile_train(train: pd.DataFrame,
         })
         train_chunks.append(chunk)
     
-    result = pd.concat(train_chunks)
 
+    result = pd.concat(train_chunks)
+    result['datetime'] = pd.to_datetime(result['datetime'])
+    
     if test_segment_ids is not None:
         result = result.loc[result['segment_id'].isin(test_segment_ids)]
 
@@ -231,10 +233,12 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     result = pd.concat(meteo_stations).reset_index()
     result.drop(columns=['road_id'], inplace=True)
 
-    result.rename(columns={'measure_dt':'datetime', 'station':'meteo_station'}, inplace=True)
-
-    result.iloc[:, 4:20] = result.iloc[:, 4:20].astype(np.int8())
-    result.iloc[:, 21:36:2] = result.iloc[:, 21:36:2].astype(np.int8())
+    result = result.rename(columns={'measure_dt':'datetime', 'station':'meteo_station'})
+    result.dropna(inplace=True)
+    
+    columns_to_int = result.columns[4:20]
+    result[columns_to_int] = result[columns_to_int].astype(int)
+    result[q_cols] = result[q_cols].astype(int)
 
     result = optimize(result)
 

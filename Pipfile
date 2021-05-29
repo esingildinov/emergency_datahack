@@ -17,6 +17,7 @@ fastai = "*"
 ipykernel = "*"
 geopy = "*"
 ipywidgets = "*"
+pyarrow = "*"
 
 [dev-packages]
 
