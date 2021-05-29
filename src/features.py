@@ -236,7 +236,7 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     result = result.rename(columns={'measure_dt':'datetime', 'station':'meteo_station'})
     result.dropna(inplace=True)
 
-    columns_to_int = result.columns[4:20]
+    columns_to_int = result.columns[4:20].tolist()
     result[columns_to_int] = result[columns_to_int].astype(int)
     result[q_cols] = result[q_cols].astype(int)
 
