@@ -48,7 +48,10 @@ def compile_train(train: pd.DataFrame,
     if 'segment_id' not in train.columns:
         train = add_segment_id(train)
 
-    segment_ids = train['segment_id'].unique()
+    if test_segment_ids is not None:
+        segment_ids = test_segment_ids
+    else:
+        segment_ids = train['segment_id'].unique()
 
     if start_date is None:
         start_date = train.datetime.min().strftime('%Y-%m-%d %H:%M:00')
@@ -80,9 +83,6 @@ def compile_train(train: pd.DataFrame,
 
     result = pd.concat(train_chunks)
     result['datetime'] = pd.to_datetime(result['datetime'])
-    
-    if test_segment_ids is not None:
-        result = result.loc[result['segment_id'].isin(test_segment_ids)]
 
     result['road_id'] = result['segment_id'].str.split('_').str[0].astype(int)
     result['road_km'] = result['segment_id'].str.split('_').str[1].astype(int)
@@ -235,7 +235,7 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
 
     result = result.rename(columns={'measure_dt':'datetime', 'station':'meteo_station'})
     result.dropna(inplace=True)
-    
+
     columns_to_int = result.columns[4:20]
     result[columns_to_int] = result[columns_to_int].astype(int)
     result[q_cols] = result[q_cols].astype(int)
