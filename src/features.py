@@ -141,7 +141,52 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df['station']=='MONCHEG', 'lat'] = 67.9 
     df.loc[df['station']=='MONCHEG', 'lon'] = 32.9
     df = coord_merge(df)
-    return df
+
+
+    df['weather_range'] = pd.factorize(df['weather_range'], sort=True)[0]
+    df['weather_on_measure'] = pd.factorize(df['weather_on_measure'], sort=True)[0]
+    df['vsp_mean'] = df[['vsp_1', 'vsp_2', 'vsp_3']].mean(axis=1)
+    df['precip'].fillna(0, inplace=True)
+
+    q_cols = [c for c in df.columns if '_q' in c]
+    q_values_bin = {'Значение элемента отсутствует': 0,
+                    'Значение элемента отсутствует.': 0,
+                    'Значение элемента достоверно': 1, 
+                    'Значение элемента достоверно и восстановлено автоматически': 1,
+                    'Значение элемента достоверно и восстановлено вручную': 1,         
+                    'Значение элемента забраковано на станции': 2}
+
+    df[q_cols] = df[q_cols].replace(q_values_bin)
+
+    meteo_stations = []
+
+    na_linear_cols = ['vsp_mean', 'visib', 'avg_wind', 'temp_on_measure', 'precip', 'humidity', 'pressure']
+    na_nearest_cols = [c for c in df.columns if c not in na_linear_cols + ['measure_dt']]
+    
+    for station_name, station_df in df.groupby('station'):
+       
+        station_df_resampled = station_df.sort_values('measure_dt')
+        station_df_resampled.set_index('measure_dt', inplace=True)
+        station_df_resampled = station_df_resampled.asfreq(freq='1H')
+        station_df_resampled['station'] = station_name
+        
+        station_df_resampled[na_nearest_cols] = station_df_resampled[na_nearest_cols].interpolate(method='nearest')
+        station_df_resampled[na_linear_cols] = station_df_resampled[na_linear_cols].interpolate(method='linear')
+
+        for col in na_linear_cols:
+            station_df_resampled[col+'_diff'] = station_df_resampled[col].diff()
+        for col in ['weather_range', 'weather_on_measure']:
+            station_df_resampled[col+'_diff'] = station_df_resampled[col].diff(3)
+
+        station_df_resampled['weather_range_diff'] = (station_df_resampled['weather_range_diff'] != 0).astype(int)
+        station_df_resampled['weather_on_measure_diff'] = (station_df_resampled['weather_range_diff'] != 0).astype(int)
+
+        meteo_stations.append(station_df_resampled)
+
+    result = pd.concat(meteo_stations).reset_index()
+    result.drop(columns=['lat_long', 'road_id'], inplace=True)
+
+    return result
 
 def preprocess_crash_parts(df: pd.DataFrame) -> pd.DataFrame:
     df['crash_type'] = df['length']
