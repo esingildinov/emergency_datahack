@@ -229,7 +229,7 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
         meteo_stations.append(station_df_resampled)
 
     result = pd.concat(meteo_stations).reset_index()
-    result.drop(columns=['lat_long', 'road_id'], inplace=True)
+    result.drop(columns=['road_id'], inplace=True)
 
     result = optimize(result)
 
