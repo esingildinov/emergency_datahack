@@ -80,13 +80,13 @@ def add_long_lat(df: pd.DataFrame,
 
     return df
 
-def add_meteo_stations(train: pd.DataFrame,
+def add_meteo_stations(geo: pd.DataFrame,
                        meteo: pd.DataFrame):
     meteostations_list = stations_list(meteo)
-    train['meteo_station'] = train['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
-    train['meteo_station'] = train['meteo_station'].where(pd.notnull(train['meteo_station']), np.nan)
+    geo['meteo_station'] = geo['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
+    geo['meteo_station'] = geo['meteo_station'].where(pd.notnull(geo['meteo_station']), np.nan)
 
-    return train
+    return geo
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df['datetime'] = pd.to_datetime(df['datetime'])
@@ -147,6 +147,8 @@ def preprocess_geo(geo: pd.DataFrame,
 
     geo['lat'], geo['lon'] = geo['lat_long'].str
     geo = geo[~(geo.lat.isnull() | geo.lon.isnull())].reset_index(drop=True)
+
+    geo.drop(columns=['Широта', 'Долгота', 'lat_glonass', 'lon_glonass'], inplace=True)
 
     return geo
 
