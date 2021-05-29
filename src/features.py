@@ -3,7 +3,7 @@ import numpy as np
 import functools
 
 from tqdm.auto import tqdm
-from typing import Optional, List, get_origin
+from typing import Optional, List
 from match_station import coord_km, coord_merge, stations_list, stat_km
 
 
@@ -213,6 +213,16 @@ def preprocess_traffic(df: pd.DataFrame) -> pd.DataFrame:
                             columns=['direction']).reset_index()
 
     result.columns = result.columns.map('_'.join).str.strip('_')
+
+    result.set_index('datetime', inplace=True)
+
+    cols_nan = ['occupancy_backward', 'occupancy_forward', 'speed_backward', 'speed_forward', 'volume_backward', 'volume_forward'] 
+    for col in cols_nan:
+        result[col] = result[col].fillna(result.groupby(['station_id', result.index.weekday, result.index.hour])[col].transform('mean'))
+        result[col] = result[col].fillna(result.groupby(['station_id', result.index.hour])[col].transform('mean'))
+
+    result.reset_index(inplace=True)
+    result.dropna(inplace=True)
 
     return result
 
