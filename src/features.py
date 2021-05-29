@@ -5,6 +5,7 @@ import functools
 from tqdm.auto import tqdm
 from typing import Optional, List
 from match_station import coord_km, coord_merge, stations_list, stat_km
+from optimizers import optimize
 
 
 def add_segment_id(df: pd.DataFrame) -> pd.DataFrame:
@@ -84,6 +85,8 @@ def compile_train(train: pd.DataFrame,
     result['road_id'] = result['segment_id'].str.split('_').str[0].astype(int)
     result['road_km'] = result['segment_id'].str.split('_').str[1].astype(int)
 
+    result.drop(columns=['segment_id'], inplace=True)
+    result = optimize(result)
     return result
 
 def add_long_lat(df: pd.DataFrame,
@@ -165,6 +168,7 @@ def preprocess_geo(geo: pd.DataFrame,
     geo = add_meteo_stations(geo,
                              meteo_stations_coords(meteo))
 
+    geo = optimize(geo)
     return geo
 
 def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
@@ -177,6 +181,7 @@ def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
     df = add_segment_id(df)
 
     df = df[['datetime', 'road_id', 'road_km', 'segment_id', 'target']]
+    df = optimize(df)
 
     return df
 
@@ -226,6 +231,8 @@ def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     result = pd.concat(meteo_stations).reset_index()
     result.drop(columns=['lat_long', 'road_id'], inplace=True)
 
+    result = optimize(result)
+
     return result
 
 def preprocess_crash_parts(df: pd.DataFrame) -> pd.DataFrame:
@@ -263,6 +270,7 @@ def preprocess_traffic(df: pd.DataFrame) -> pd.DataFrame:
 
     result.reset_index(inplace=True)
     result.dropna(inplace=True)
+    result = optimize(result)
 
     return result
 
