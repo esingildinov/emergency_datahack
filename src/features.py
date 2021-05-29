@@ -11,6 +11,24 @@ def add_segment_id(df: pd.DataFrame) -> pd.DataFrame:
     df['segment_id'] = df[['road_id', 'road_km']].apply(lambda row: '_'.join(row.values.astype(str)), axis=1)
     return df
 
+def meteo_stations_coords(df: pd.DataFrame) -> pd.DataFrame:
+
+    df.loc[df['station']=='MOSKBAL', 'lat'] = 55.8 
+    df.loc[df['station']=='MOSKBAL', 'lon'] = 37.5
+    df.loc[df['station']=='MONCHEG', 'lat'] = 67.9 
+    df.loc[df['station']=='MONCHEG', 'lon'] = 32.9
+    df = coord_merge(df)
+
+    return df
+
+def add_meteo_stations(geo: pd.DataFrame,
+                       meteo: pd.DataFrame):
+    meteostations_list = stations_list(meteo)
+    geo['meteo_station'] = geo['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
+    geo['meteo_station'] = geo['meteo_station'].where(pd.notnull(geo['meteo_station']), np.nan)
+
+    return geo
+
 def compile_train(train: pd.DataFrame,
                   start_date: Optional[str] = None,
                   end_date: Optional[str] = None,
@@ -80,14 +98,6 @@ def add_long_lat(df: pd.DataFrame,
 
     return df
 
-def add_meteo_stations(geo: pd.DataFrame,
-                       meteo: pd.DataFrame):
-    meteostations_list = stations_list(meteo)
-    geo['meteo_station'] = geo['lat_long'].map(functools.partial(stat_km, stat_list=meteostations_list))
-    geo['meteo_station'] = geo['meteo_station'].where(pd.notnull(geo['meteo_station']), np.nan)
-
-    return geo
-
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df['datetime'] = pd.to_datetime(df['datetime'])
     df['weekday'] = df['datetime'].dt.weekday
@@ -120,7 +130,9 @@ def get_traffic_stations(traffic: pd.DataFrame) -> pd.DataFrame:
     return traffic_stations
 
 def preprocess_geo(geo: pd.DataFrame,
-                   traffic: pd.DataFrame) -> pd.DataFrame:
+                   traffic: pd.DataFrame,
+                   meteo: pd.DataFrame) -> pd.DataFrame:
+
     geo['lat_geoc'] = geo['lat_geoc'].fillna(geo['lat_glonass'])
     geo['lon_geoc'] = geo['lon_geoc'].fillna(geo['lon_glonass'])
 
@@ -150,6 +162,9 @@ def preprocess_geo(geo: pd.DataFrame,
 
     geo.drop(columns=['Широта', 'Долгота', 'lat_glonass', 'lon_glonass'], inplace=True)
 
+    geo = add_meteo_stations(geo,
+                             meteo_stations_coords(meteo))
+
     return geo
 
 def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
@@ -167,13 +182,7 @@ def preprocess_train(df: pd.DataFrame) -> pd.DataFrame:
 
 def preprocess_meteo(df: pd.DataFrame) -> pd.DataFrame:
     # вручную добавляем координаты для станций 'MOSKBAL' и 'MONCHEG', взятые из других датасетов Росгидромета
-    df.loc[df['station']=='MOSKBAL', 'lat'] = 55.8 
-    df.loc[df['station']=='MOSKBAL', 'lon'] = 37.5
-    df.loc[df['station']=='MONCHEG', 'lat'] = 67.9 
-    df.loc[df['station']=='MONCHEG', 'lon'] = 32.9
-    df = coord_merge(df)
-
-
+   
     df['weather_range'] = pd.factorize(df['weather_range'], sort=True)[0]
     df['weather_on_measure'] = pd.factorize(df['weather_on_measure'], sort=True)[0]
     df['vsp_mean'] = df[['vsp_1', 'vsp_2', 'vsp_3']].mean(axis=1)
