@@ -7,3 +7,6 @@ To reproduce the solution:
 3. Run cells in notebook `main.ipynb` - this will generate several train datasets in folder `data_processed`
 4. Run notebook `modelling.ipynb` the model will be saved to `results` folder
 5. Run notebook `predict.ipynb` to get submission file in `results` folder
+
+Pretrained model, best submission and compiled dataset are available here:
+https://bit.ly/3vC1kwu
